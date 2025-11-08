@@ -1,0 +1,12 @@
+# HOW TO EDIT THIS FILE:
+# Format: app_id|App Name (one per line)
+# Find app IDs: mas search "App Name" or visit Mac App Store
+# Remove a line to uninstall (or comment with #)
+# Requires: Sign in to Mac App Store before running prep.command
+
+409201541|Pages
+409203825|Numbers
+409183694|Keynote
+472226235|LanScan
+1092006274|AJA System Test Lite
+
