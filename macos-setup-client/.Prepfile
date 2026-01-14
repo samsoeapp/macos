@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# HOW TO EDIT THIS FILE:
+# - Dock items: Add/remove app paths in DOCK_ITEMS array
+# - Default browser: Change DEFAULT_BROWSER value
+# - macOS defaults: Edit defaults commands below (use: defaults read <domain> to see current values)
+# After editing, run: ./prep.command
+
+###############################################################################
+# Dock Configuration                                                          #
+###############################################################################
+
+DOCK_ITEMS=(
+  "/Applications/Google Chrome.app"
+  "/Applications/Google Drive.app"
+  "/Applications/1Password.app"
+  "/Applications/WhatsApp.app"
+  "/Applications/Slack.app"
+  "/Applications/Microsoft Word.app"
+  "/Applications/Microsoft Excel.app"
+  "/System/Applications/Notes.app"
+  "/System/Applications/Calendar.app"
+  "/Applications/Safari.app"
+  "/System/Applications/System Settings.app"
+)
+
+DEFAULT_BROWSER="Google Chrome"
+
+###############################################################################
+# macOS System Defaults                                                       #
+###############################################################################
+
+# Close System Preferences/Settings to prevent conflicts
+osascript -e 'tell application "System Preferences" to quit' 2>/dev/null || true
+osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
+
+# General UI/UX
+defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
+defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true
+defaults write com.apple.Siri SiriPrefStashedStatusMenuVisible -bool false
+defaults write com.apple.Siri VoiceTriggerUserEnabled -bool false
+defaults write -g AppleWindowTabbingMode -string always
+defaults write com.apple.controlcenter "NSStatusItem Visible Bluetooth" -bool true
+defaults write com.apple.controlcenter "NSStatusItem Visible Sound" -bool true
+defaults -currentHost write com.apple.Spotlight MenuItemHidden -int 1
+
+# Finder
+defaults write com.apple.finder ShowPathbar -bool true
+defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv"
+defaults write com.apple.finder ShowStatusBar -boolean true
+defaults write com.apple.finder AppleShowAllFiles true
+defaults write NSGlobalDomain AppleShowAllExtensions -boolean true
+
+# Show /Volumes (requires sudo)
+if [[ -n "${SUDO_ASKPASS:-}" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
+  sudo -A -v >/dev/null 2>&1 || true
+  sudo -A chflags nohidden /Volumes 2>/dev/null || true
+else
+  sudo -v 2>/dev/null || {
+    echo "Sudo credentials expired. Please enter your password:" >&2
+    sudo -v || exit 0
+  }
+  sudo chflags nohidden /Volumes 2>/dev/null || true
+fi
+
+# Unhide ~/Library
+chflags nohidden "$HOME/Library" 2>/dev/null || true
+xattr -d com.apple.FinderInfo "$HOME/Library" 2>/dev/null || true
+
+# Text Input
+defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+# Bluetooth
+defaults write com.apple.BluetoothAudioAgent "Apple Bitpool Min (editable)" -int 40
+
+# Network
+defaults write com.apple.NetworkBrowser BrowseAllInterfaces -bool true
+
+# Screenshots
+defaults write com.apple.screencapture location -string "$HOME/Downloads"
+defaults write com.apple.screencapture type -string "png"
+
+# Safari
+defaults write com.apple.Safari IncludeDevelopMenu -bool true 2>/dev/null || true
+defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true 2>/dev/null || true
+defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2DeveloperExtrasEnabled -bool true 2>/dev/null || true
+defaults write com.apple.Safari AutoFillFromAddressBook -bool false 2>/dev/null || true
+defaults write com.apple.Safari AutoFillPasswords -bool false 2>/dev/null || true
+defaults write com.apple.Safari AutoFillCreditCardData -bool false 2>/dev/null || true
+defaults write com.apple.Safari AutoFillMiscellaneousForms -bool false 2>/dev/null || true
+defaults write com.apple.Safari SendDoNotTrackHTTPHeader -bool true 2>/dev/null || true
+
+# Login Window (requires sudo)
+if [[ -n "${SUDO_ASKPASS:-}" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
+  sudo -A -v >/dev/null 2>&1 || true
+  sudo -A defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName 2>/dev/null || true
+else
+  sudo -v 2>/dev/null || {
+    echo "Sudo credentials expired. Please enter your password:" >&2
+    sudo -v || exit 0
+  }
+  sudo defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName 2>/dev/null || true
+fi
+
+# Restart applications to apply changes
+if [[ -n "${SUDO_ASKPASS:-}" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
+  sudo -A -v >/dev/null 2>&1 || true
+else
+  sudo -v 2>/dev/null || { sudo -v || true; }
+fi
+killall Safari >/dev/null 2>&1 || true
+sleep 0.5
+killall Finder >/dev/null 2>&1 || true
+sleep 0.5
+
