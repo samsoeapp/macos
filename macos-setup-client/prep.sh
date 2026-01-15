@@ -73,6 +73,7 @@ TOTAL_STEPS=7
 REVERT_DEFAULTS=false
 CLIENT_PROFILE=""
 SUDO_KEEPALIVE_PID=""
+SUDO_INITIALIZED=false
 
 log_to_file() {
   printf "[%s] %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE"
@@ -149,6 +150,7 @@ run_cmd() {
 run_cmd_admin() {
   local desc="$1"
   shift
+  ensure_sudo
   log_to_file "ADMIN: $desc"
   if sudo -n "$@" >> "$LOG_FILE" 2>&1; then
     log "$desc"
@@ -170,6 +172,7 @@ run_optional() {
 run_optional_admin() {
   local desc="$1"
   shift
+  ensure_sudo
   log_to_file "ADMIN: $desc"
   if sudo -n "$@" >> "$LOG_FILE" 2>&1; then
     log "$desc"
@@ -196,6 +199,14 @@ init_sudo() {
     sleep 60
   done &
   SUDO_KEEPALIVE_PID=$!
+  SUDO_INITIALIZED=true
+}
+
+ensure_sudo() {
+  if [[ "${SUDO_INITIALIZED}" == "true" ]]; then
+    return 0
+  fi
+  init_sudo
 }
 
 cleanup_sudo() {
@@ -295,6 +306,7 @@ install_homebrew() {
     return 1
   fi
 
+  ensure_sudo
   run_cmd "Install Homebrew" /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
   if [[ -x /opt/homebrew/bin/brew ]]; then
@@ -310,6 +322,7 @@ install_brew_packages() {
     return 0
   fi
 
+  ensure_sudo
   local formula
   for formula in "${BREW_FORMULAE[@]}"; do
     run_optional "Install Homebrew formula ($formula)" brew install "$formula"
@@ -537,8 +550,6 @@ main() {
   show_setting "Show Finder path bar" "com.apple.finder" "ShowPathbar"
   show_setting "Default Finder view style" "com.apple.Finder" "FXPreferredViewStyle"
   printf "\n"
-
-  init_sudo
 
   step_start "Installing Xcode Command Line Tools"
   ensure_xcode_cli_tools
