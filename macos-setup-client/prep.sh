@@ -527,7 +527,6 @@ main() {
   trap cleanup_sudo EXIT
   parse_args "$@"
   apply_client_profile
-  filter_dock_items
 
   printf "macOS Defaults Setup\n"
   printf "Log file: %s\n\n" "$LOG_FILE"
@@ -551,6 +550,7 @@ main() {
   # Optional: Install Homebrew packages (inline list)
   step_start "Installing Homebrew packages"
   install_brew_packages
+  filter_dock_items
 
   # Optional: Install Mac App Store apps (requires mas + sign-in)
   # step_start "Installing App Store apps"
