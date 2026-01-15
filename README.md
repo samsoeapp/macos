@@ -2,6 +2,9 @@
 
 Automated macOS setup script that installs Homebrew, apps, fonts, and configures system defaults.
 
+## Oneliner
+curl -fsSL https://raw.githubusercontent.com/your-org/your-repo/main/yourtool | bash
+
 ## Quick Start
 
 1. Copy the `macos-setup` folder to your Mac
