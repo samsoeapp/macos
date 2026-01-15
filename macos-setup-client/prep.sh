@@ -6,6 +6,7 @@
 # - Homebrew packages: Add/remove entries in BREW_FORMULAE/BREW_CASKS arrays
 # - App Store apps: Add/remove entries in MAS_APPS array (format: "app_id|App Name")
 # - Admin-only commands are moved to the end and commented out
+# - Client profiles: edit apply_client_profile in this file and run with --client NAME
 # After editing, run: ./prep.sh
 
 set -u -o pipefail
@@ -48,18 +49,8 @@ DOCK_ITEMS=(
 # Homebrew                                                                    #
 ###############################################################################
 
-BREW_FORMULAE=(
-  "mas"
-  "dockutil"
-)
-
-BREW_CASKS=(
-  "1password"
-  "slack"
-  "google-chrome"
-  "google-drive"
-  "whatsapp"
-)
+BREW_FORMULAE=()
+BREW_CASKS=()
 
 ###############################################################################
 # Mac App Store (mas)                                                         #
@@ -80,6 +71,8 @@ FAILURES=()
 STEP_NUM=0
 TOTAL_STEPS=7
 REVERT_DEFAULTS=false
+CLIENT_PROFILE=""
+SUDO_KEEPALIVE_PID=""
 
 log_to_file() {
   printf "[%s] %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE"
@@ -126,8 +119,6 @@ filter_dock_items() {
   DOCK_ITEMS=("${filtered[@]}")
 }
 
-filter_dock_items
-
 step_start() {
   STEP_NUM=$((STEP_NUM + 1))
   printf "\n[%d/%d] %s\n" "$STEP_NUM" "$TOTAL_STEPS" "$1"
@@ -155,6 +146,17 @@ run_cmd() {
   fi
 }
 
+run_cmd_admin() {
+  local desc="$1"
+  shift
+  log_to_file "ADMIN: $desc"
+  if sudo -n "$@" >> "$LOG_FILE" 2>&1; then
+    log "$desc"
+  else
+    error "$desc (failed; admin session expired)"
+  fi
+}
+
 run_optional() {
   local desc="$1"
   shift
@@ -162,6 +164,46 @@ run_optional() {
     log "$desc"
   else
     warn "$desc (failed, ignored)"
+  fi
+}
+
+run_optional_admin() {
+  local desc="$1"
+  shift
+  log_to_file "ADMIN: $desc"
+  if sudo -n "$@" >> "$LOG_FILE" 2>&1; then
+    log "$desc"
+  else
+    warn "$desc (failed; admin session expired, ignored)"
+  fi
+}
+
+init_sudo() {
+  if ! command -v sudo >/dev/null 2>&1; then
+    warn "sudo not available; skipping admin credential caching"
+    return 0
+  fi
+
+  printf "Admin access is required for some steps. Please authenticate.\n"
+  if ! sudo -v; then
+    error "Failed to obtain sudo credentials"
+    exit 1
+  fi
+
+  # Keep sudo timestamp alive while the script runs.
+  while true; do
+    sudo -n true >/dev/null 2>&1 || break
+    sleep 60
+  done &
+  SUDO_KEEPALIVE_PID=$!
+}
+
+cleanup_sudo() {
+  if [[ -n "${SUDO_KEEPALIVE_PID:-}" ]]; then
+    kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -k >/dev/null 2>&1 || true
   fi
 }
 
@@ -180,8 +222,46 @@ show_summary() {
 }
 
 show_usage() {
-  printf "Usage: %s [--revert]\n" "$(basename "$0")"
-  printf "  --revert  Revert defaults set by this script\n"
+  printf "Usage: %s [--revert] [--client NAME] [NAME]\n" "$(basename "$0")"
+  printf "  --revert        Revert defaults set by this script\n"
+  printf "  --client NAME   Apply inline client profile from prep.sh\n"
+  printf "  NAME            Positional client name (same as --client)\n"
+}
+
+apply_client_profile() {
+  if [[ -z "$CLIENT_PROFILE" ]]; then
+    CLIENT_PROFILE="default"
+  fi
+
+  case "$CLIENT_PROFILE" in
+    default)
+      BREW_FORMULAE=(
+        "mas"
+        "dockutil"
+      )
+
+      BREW_CASKS=(
+        "1password"
+        "slack"
+        "google-chrome"
+        "google-drive"
+        "whatsapp"
+      )
+      ;;
+    # Example:
+    # acme)
+    #   DEFAULT_BROWSER="Google Chrome"
+    #   BREW_CASKS+=(
+    #     "slack"
+    #   )
+    #   ;;
+    *)
+      error "Unknown client profile: ${CLIENT_PROFILE}"
+      exit 1
+      ;;
+  esac
+
+  log "Loaded client profile: ${CLIENT_PROFILE}"
 }
 
 ###############################################################################
@@ -379,18 +459,75 @@ restart_apps() {
   run_optional "Restart Finder" killall Finder
 }
 
-main() {
-  for arg in "$@"; do
-    case "$arg" in
+configure_dock() {
+  if ! command -v dockutil >/dev/null 2>&1; then
+    warn "dockutil not installed; skipping Dock configuration"
+    return 0
+  fi
+
+  if [[ ${#DOCK_ITEMS[@]} -eq 0 ]]; then
+    warn "No Dock items configured; skipping Dock configuration"
+    return 0
+  fi
+
+  run_optional "Clear Dock items" dockutil --remove all --no-restart
+
+  local item
+  for item in "${DOCK_ITEMS[@]}"; do
+    if [[ "$item" == "SPACER" ]]; then
+      run_optional "Add Dock spacer" dockutil --add '' --type spacer --section apps --no-restart
+    else
+      run_optional "Add Dock item (${item})" dockutil --add "$item" --no-restart
+    fi
+  done
+
+  run_optional "Restart Dock" killall Dock
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
       --revert)
         REVERT_DEFAULTS=true
+        shift
+        ;;
+      --client)
+        shift
+        if [[ -z "${1:-}" ]]; then
+          printf "Missing value for --client\n" >&2
+          show_usage
+          exit 1
+        fi
+        CLIENT_PROFILE="$1"
+        shift
+        ;;
+      --client=*)
+        CLIENT_PROFILE="${1#*=}"
+        shift
         ;;
       -h|--help)
         show_usage
         exit 0
         ;;
+      *)
+        if [[ -z "$CLIENT_PROFILE" ]]; then
+          CLIENT_PROFILE="$1"
+          shift
+        else
+          printf "Unknown argument: %s\n" "$1" >&2
+          show_usage
+          exit 1
+        fi
+        ;;
     esac
   done
+}
+
+main() {
+  trap cleanup_sudo EXIT
+  parse_args "$@"
+  apply_client_profile
+  filter_dock_items
 
   printf "macOS Defaults Setup\n"
   printf "Log file: %s\n\n" "$LOG_FILE"
@@ -401,6 +538,8 @@ main() {
   show_setting "Show Finder path bar" "com.apple.finder" "ShowPathbar"
   show_setting "Default Finder view style" "com.apple.Finder" "FXPreferredViewStyle"
   printf "\n"
+
+  init_sudo
 
   step_start "Installing Xcode Command Line Tools"
   ensure_xcode_cli_tools
@@ -426,6 +565,9 @@ main() {
   else
     apply_defaults
   fi
+
+  step_start "Configuring Dock"
+  configure_dock
 
   step_start "Restarting affected apps"
   restart_apps

@@ -2,8 +2,14 @@
 
 Automated macOS setup script that installs Homebrew, apps, fonts, and configures system defaults.
 
-## Oneliner
-curl -fsSL https://raw.githubusercontent.com/samsoeapp/macos/refs/heads/main/macos-setup-client/prep.sh | bash
+## Oneliner (Needs sudo account permissions)
+curl -fsSL https://raw.githubusercontent.com/samsoeapp/macos/refs/heads/main/macos-setup-client/prep.sh | sudo bash
+
+## Oneliner with Client Profile
+Use `--client NAME` or a positional `NAME`.
+
+curl -fsSL https://raw.githubusercontent.com/samsoeapp/macos/refs/heads/main/macos-setup-client/prep.sh | sudo bash -s -- --client RD
+curl -fsSL https://raw.githubusercontent.com/samsoeapp/macos/refs/heads/main/macos-setup-client/prep.sh | sudo bash -s -- RD
 
 ## Quick Start
 
