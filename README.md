@@ -3,7 +3,7 @@
 Automated macOS setup script that installs Homebrew, apps, fonts, and configures system defaults.
 
 ## Oneliner
-curl -fsSL https://raw.githubusercontent.com/your-org/your-repo/main/yourtool | bash
+curl -fsSL https://raw.githubusercontent.com/samsoeapp/macos/refs/heads/main/macos-setup-client/prep.sh | bash
 
 ## Quick Start
 
