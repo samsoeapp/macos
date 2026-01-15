@@ -387,6 +387,18 @@ close_system_settings() {
   run_optional "Close System Settings" osascript -e 'tell application "System Settings" to quit'
 }
 
+ensure_safari_initialized() {
+  local safari_container="${HOME}/Library/Containers/com.apple.Safari"
+  if [[ -d "$safari_container" ]]; then
+    return 0
+  fi
+
+  run_optional "Launch Safari to initialize container" open -a "Safari"
+  sleep 3
+  run_optional "Quit Safari after initialization" osascript -e 'tell application "Safari" to quit'
+  sleep 2
+}
+
 apply_defaults() {
   # General UI/UX
   run_cmd "Expand save panel (save)" defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
@@ -409,7 +421,11 @@ apply_defaults() {
 
   # Unhide ~/Library
   run_optional "Unhide ~/Library" chflags nohidden "$HOME/Library"
-  run_optional "Remove FinderInfo xattr" xattr -d com.apple.FinderInfo "$HOME/Library"
+  if xattr -p com.apple.FinderInfo "$HOME/Library" >/dev/null 2>&1; then
+    run_optional "Remove FinderInfo xattr" xattr -d com.apple.FinderInfo "$HOME/Library"
+  else
+    log "FinderInfo xattr not present; skipping"
+  fi
 
   # Text Input
   run_cmd "Disable auto-capitalization" defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
@@ -426,6 +442,7 @@ apply_defaults() {
   run_cmd "Use PNG for screenshots" defaults write com.apple.screencapture type -string "png"
 
   # Safari (ignore failures if Safari is not present)
+  ensure_safari_initialized
   run_optional "Enable Safari Develop menu" defaults write com.apple.Safari IncludeDevelopMenu -bool true
   run_optional "Enable Safari WebKit developer extras (global)" defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true
   run_optional "Enable Safari WebKit developer extras" defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2DeveloperExtrasEnabled -bool true
