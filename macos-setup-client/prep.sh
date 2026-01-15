@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # HOW TO EDIT THIS FILE:
+# - Default apps: Set optional DEFAULT_*_APP values
 # - Dock items: Add/remove app paths in DOCK_ITEMS array
-# - Default browser: Change DEFAULT_BROWSER value
 # - macOS defaults: Edit defaults commands below (use: defaults read <domain> to see current values)
 # - Homebrew packages: Add/remove entries in BREW_FORMULAE/BREW_CASKS arrays
 # - App Store apps: Add/remove entries in MAS_APPS array (format: "app_id|App Name")
@@ -12,6 +12,19 @@ set -u -o pipefail
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${0}}")" && pwd)"
+
+###############################################################################
+# User Configuration                                                          #
+###############################################################################
+
+# Default Apps (optional; app must already be installed)
+DEFAULT_BROWSER="Google Chrome"
+# DEFAULT_EMAIL_APP="Mail"
+# DEFAULT_CALENDAR_APP="Calendar"
+# DEFAULT_MAPS_APP="Maps"
+# DEFAULT_MUSIC_APP="Music"
+# DEFAULT_PHOTOS_APP="Photos"
+# DEFAULT_TEXT_EDITOR_APP="Visual Studio Code"
 
 ###############################################################################
 # Dock Configuration                                                          #
@@ -59,19 +72,13 @@ MAS_APPS=(
 )
 
 ###############################################################################
-# Default Apps                                                              #
-###############################################################################
-
-DEFAULT_BROWSER="Google Chrome"
-
-###############################################################################
 # Logging and Helpers                                                         #
 ###############################################################################
 
-LOG_FILE="${SCRIPT_DIR}/.prep-defaults-$(date '+%Y%m%d').log"
+LOG_FILE="${HOME}/Downloads/.prep-defaults-$(date '+%Y%m%d').log"
 FAILURES=()
 STEP_NUM=0
-TOTAL_STEPS=4
+TOTAL_STEPS=7
 REVERT_DEFAULTS=false
 
 log_to_file() {
@@ -160,7 +167,7 @@ run_optional() {
 
 show_summary() {
   printf "\nSummary\n"
-  printf "-------\n"
+  printf "\n"
   if [[ ${#FAILURES[@]} -eq 0 ]]; then
     printf "All tasks completed successfully.\n"
   else
@@ -180,6 +187,22 @@ show_usage() {
 ###############################################################################
 # Homebrew                                                                    #
 ###############################################################################
+
+ensure_xcode_cli_tools() {
+  if /usr/bin/xcode-select -p >/dev/null 2>&1; then
+    log "Xcode Command Line Tools already installed"
+    return 0
+  fi
+
+  run_optional "Request Xcode Command Line Tools install" /usr/bin/xcode-select --install
+
+  # Wait until installation completes (user confirmation required).
+  while ! /usr/bin/xcode-select -p >/dev/null 2>&1; do
+    printf "Waiting for Xcode Command Line Tools installation to finish...\n"
+    sleep 20
+  done
+  log "Xcode Command Line Tools installed"
+}
 
 install_homebrew() {
   if command -v brew >/dev/null 2>&1; then
@@ -379,6 +402,21 @@ main() {
   show_setting "Default Finder view style" "com.apple.Finder" "FXPreferredViewStyle"
   printf "\n"
 
+  step_start "Installing Xcode Command Line Tools"
+  ensure_xcode_cli_tools
+
+  # Optional: Install Homebrew
+  step_start "Installing Homebrew"
+  install_homebrew
+
+  # Optional: Install Homebrew packages (inline list)
+  step_start "Installing Homebrew packages"
+  install_brew_packages
+
+  # Optional: Install Mac App Store apps (requires mas + sign-in)
+  # step_start "Installing App Store apps"
+  # install_mas_apps
+
   step_start "Closing System Settings"
   close_system_settings
 
@@ -391,18 +429,6 @@ main() {
 
   step_start "Restarting affected apps"
   restart_apps
-
-  # Optional: Install Mac App Store apps (requires mas + sign-in)
-  # step_start "Installing App Store apps"
-  # install_mas_apps
-
-  # Optional: Install Homebrew
-  step_start "Installing Homebrew"
-  install_homebrew
-
-  # Optional: Install Homebrew packages (inline list)
-  step_start "Installing Homebrew packages"
-  install_brew_packages
 
   # Optional: Reset Dock to defaults (uncomment to enable)
   # step_start "Resetting Dock to defaults"
