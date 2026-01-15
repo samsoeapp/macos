@@ -74,6 +74,7 @@ REVERT_DEFAULTS=false
 CLIENT_PROFILE=""
 SUDO_KEEPALIVE_PID=""
 SUDO_INITIALIZED=false
+ACCEPT_XCODE_LICENSE=false
 
 log_to_file() {
   printf "[%s] %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE"
@@ -236,6 +237,7 @@ show_usage() {
   printf "Usage: %s [--revert] [--client NAME] [NAME]\n" "$(basename "$0")"
   printf "  --revert        Revert defaults set by this script\n"
   printf "  --client NAME   Apply inline client profile from prep.sh\n"
+  printf "  --accept-xcode-license  Accept Xcode license after install\n"
   printf "  NAME            Positional client name (same as --client)\n"
 }
 
@@ -282,6 +284,9 @@ apply_client_profile() {
 ensure_xcode_cli_tools() {
   if /usr/bin/xcode-select -p >/dev/null 2>&1; then
     log "Xcode Command Line Tools already installed"
+    if [[ "${ACCEPT_XCODE_LICENSE}" == "true" ]]; then
+      accept_xcode_license
+    fi
     return 0
   fi
 
@@ -293,6 +298,18 @@ ensure_xcode_cli_tools() {
     sleep 20
   done
   log "Xcode Command Line Tools installed"
+  if [[ "${ACCEPT_XCODE_LICENSE}" == "true" ]]; then
+    accept_xcode_license
+  fi
+}
+
+accept_xcode_license() {
+  if ! command -v xcodebuild >/dev/null 2>&1; then
+    warn "xcodebuild not available; cannot accept Xcode license"
+    return 0
+  fi
+
+  run_cmd_admin "Accept Xcode license" /usr/bin/xcodebuild -license accept
 }
 
 install_homebrew() {
@@ -516,6 +533,10 @@ parse_args() {
         ;;
       --client=*)
         CLIENT_PROFILE="${1#*=}"
+        shift
+        ;;
+      --accept-xcode-license)
+        ACCEPT_XCODE_LICENSE=true
         shift
         ;;
       -h|--help)
